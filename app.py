@@ -74,6 +74,7 @@ current_task = {
     "source_video": None,
     "channel_name": "Creator",
     "mode": "streamer",
+    "font_style": "anton",
     "facecam_box": None,
     "orig_w": 1920,
     "orig_h": 1080,
@@ -244,11 +245,13 @@ class StartRequest(BaseModel):
     url: str
     mode: str = "streamer"
     facecam: str = "bottom-right"
+    font_style: str = "anton"
     action: str = "auto"  # 'auto' atau 'review'
 
 
 class RenderRequest(BaseModel):
     clips: List[Dict[str, Any]]
+    font_style: Optional[str] = None
 
 
 # ==============================================================================
@@ -260,6 +263,7 @@ def background_pipeline_worker(req: StartRequest):
     temp_video = TEMP_DIR / "temp_source.mp4"
     current_task["source_video"] = temp_video
     current_task["mode"] = req.mode
+    current_task["font_style"] = req.font_style or "anton"
 
     try:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -456,6 +460,7 @@ def execute_rendering_pipeline(clips_to_render: List[Any]):
     orig_w = current_task["orig_w"]
     orig_h = current_task["orig_h"]
     words_data = current_task["words_data"]
+    font_style = current_task.get("font_style", "anton")
 
     total = len(clips_to_render)
     log_ws(f"\n--- MEMULAI BATCH RENDERING ({total} KLIP) ---")
@@ -490,7 +495,9 @@ def execute_rendering_pipeline(clips_to_render: List[Any]):
             orig_h=orig_h,
             words_data=words_data,
             output_dir=OUTPUT_DIR,
-            temp_dir=TEMP_DIR
+            temp_dir=TEMP_DIR,
+            font_style=font_style,
+            total_clips=total
         )
 
         rendered_list.append((idx, clip_obj, out_path))
@@ -623,6 +630,8 @@ async def render_clips(req: RenderRequest):
     if not req.clips:
         raise HTTPException(status_code=400, detail="Daftar klip kosong")
 
+    if req.font_style:
+        current_task["font_style"] = req.font_style
     current_task["is_running"] = True
     threading.Thread(target=execute_rendering_pipeline, args=(req.clips,), daemon=True).start()
     return {"status": "rendering_started", "count": len(req.clips)}

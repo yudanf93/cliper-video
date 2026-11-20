@@ -75,6 +75,53 @@ MAX_CLIP_DURATION = 60  # Detik
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output_clips"
 TEMP_DIR = BASE_DIR / "temp_work"
+FONTS_DIR = BASE_DIR / "fonts"
+
+# Daftar Preset Font Rekomendasi untuk Judul Hook (#FFD700)
+FONT_PRESETS: Dict[str, Dict[str, Any]] = {
+    "anton": {
+        "label": "Anton (Tebal & Gagah - Gaming/Stream)",
+        "file": "Anton-Regular.ttf",
+        "base_size": 52,
+        "max_chars_normal": 35,
+        "uppercase": False,
+    },
+    "bebas": {
+        "label": "Bebas Neue (Kapital Ramping & Tegas)",
+        "file": "BebasNeue-Regular.ttf",
+        "base_size": 56,
+        "max_chars_normal": 36,
+        "uppercase": True,
+    },
+    "impact": {
+        "label": "Impact (Klasik Thumbnail & Meme)",
+        "file": "impact.ttf",
+        "base_size": 50,
+        "max_chars_normal": 35,
+        "uppercase": False,
+    },
+    "montserrat": {
+        "label": "Montserrat Black (Bersih & Viral Shorts)",
+        "file": "Montserrat-Black.ttf",
+        "base_size": 40,
+        "max_chars_normal": 29,
+        "uppercase": False,
+    },
+    "poppins": {
+        "label": "Poppins Bold (Geometris & Modern)",
+        "file": "Poppins-Bold.ttf",
+        "base_size": 40,
+        "max_chars_normal": 30,
+        "uppercase": False,
+    },
+    "opensans": {
+        "label": "Open Sans ExtraBold (Jelas & Edukasi)",
+        "file": "OpenSans-ExtraBold.ttf",
+        "base_size": 40,
+        "max_chars_normal": 30,
+        "uppercase": False,
+    },
+}
 
 
 # ==============================================================================
@@ -694,10 +741,10 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
     # MarginV dihitung dari bawah layar:
     # Pada Mode Streamer: Target y ≈ 585 dari atas. Karena canvas 1920, MarginV = 1920 - 585 = 1335.
     if mode == "streamer":
-        style_line = "Style: Default,Arial,34,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3.5,0,2,40,40,1335,1\n"
+        style_line = "Style: Default,Montserrat ExtraBold,36,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4.0,1,2,40,40,1335,1\n"
     else:
         # Mode Biasa: Di bawah tengah, aman dari UI TikTok
-        style_line = "Style: Default,Arial,38,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4.0,0,2,40,40,220,1\n"
+        style_line = "Style: Default,Montserrat ExtraBold,40,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4.2,1,2,40,40,220,1\n"
 
     events_header = "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
 
@@ -729,6 +776,54 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 # ==============================================================================
 # STEP 7: RENDERING BATCH (FFMPEG)
 # ==============================================================================
+def get_ffmpeg_font_path(font_filename: str) -> str:
+    """Mencari path file font (.ttf) di folder fonts/ proyek atau C:/Windows/Fonts lalu meng-escape untuk FFmpeg."""
+    candidates = [
+        FONTS_DIR / font_filename,
+        Path("C:/Windows/Fonts") / font_filename,
+        FONTS_DIR / "Anton-Regular.ttf",
+        FONTS_DIR / "Poppins-Bold.ttf",
+        Path("C:/Windows/Fonts/arialbd.ttf"),
+        Path("C:/Windows/Fonts/arial.ttf"),
+    ]
+    for cand in candidates:
+        if cand.exists():
+            escaped = str(cand.resolve()).replace("\\", "/")
+            return escaped.replace(":", "\\:")
+    return ""
+
+
+def split_hook_into_two_lines(raw_text: str) -> List[str]:
+    """Memecah teks headline hook menjadi maksimal 2 baris yang seimbang panjang karakternya."""
+    cleaned = raw_text.strip()
+    if not cleaned:
+        return [""]
+
+    # Jika pengguna sudah memisahkan dengan baris baru (\n)
+    if "\n" in cleaned:
+        parts = [p.strip() for p in cleaned.splitlines() if p.strip()]
+        if len(parts) <= 2:
+            return parts
+        return [parts[0], " ".join(parts[1:])]
+
+    words = cleaned.split()
+    if len(words) <= 4 and len(cleaned) <= 26:
+        return [cleaned]
+
+    # Cari titik potong kata yang menghasilkan selisih panjang karakter paling seimbang
+    best_idx = len(words) // 2
+    best_diff = 9999
+    for i in range(1, len(words)):
+        l1 = " ".join(words[:i])
+        l2 = " ".join(words[i:])
+        diff = abs(len(l1) - len(l2))
+        if diff < best_diff:
+            best_diff = diff
+            best_idx = i
+
+    return [" ".join(words[:best_idx]), " ".join(words[best_idx:])]
+
+
 def render_clip_ffmpeg(
     source_video: Path,
     clip: ClipSegment,
@@ -740,7 +835,9 @@ def render_clip_ffmpeg(
     orig_h: int,
     words_data: List[Dict[str, Any]],
     output_dir: Path,
-    temp_dir: Path
+    temp_dir: Path,
+    font_style: str = "anton",
+    total_clips: int = MAX_CLIPS
 ) -> Path:
     """
     Merender 1 klip video vertikal 1080x1920 menggunakan filter_complex FFmpeg.
@@ -758,21 +855,34 @@ def render_clip_ffmpeg(
 
     # 2. Path escaping untuk FFmpeg di Windows
     # Gunakan forward slash dan escape titik dua (C\:/path/to/...)
-    sub_escaped = str(sub_file.resolve()).replace("\\", "/")
-    sub_escaped = sub_escaped.replace(":", "\\:")
+    sub_escaped = str(sub_file.resolve()).replace("\\", "/").replace(":", "\\:")
+    fonts_dir_escaped = str(FONTS_DIR.resolve()).replace("\\", "/").replace(":", "\\:")
+
+    # 3. Font & Teks untuk CC: YouTube (Poppins Bold 30px) dan Judul Hook (#FFD700 Kuning Emas)
+    preset = FONT_PRESETS.get((font_style or "anton").lower(), FONT_PRESETS["anton"])
+    cc_font_escaped = get_ffmpeg_font_path("Poppins-Bold.ttf")
+    hook_font_escaped = get_ffmpeg_font_path(preset["file"])
 
     channel_clean = escape_ffmpeg_text(channel_name)
-    hook_clean = escape_ffmpeg_text(clip.hook_headline)
 
-    # Pecah hook menjadi maksimal 2 baris jika panjang
-    words = hook_clean.split(" ")
-    if len(words) > 5:
-        mid = len(words) // 2
-        hook_formatted = " ".join(words[:mid]) + "\\n" + " ".join(words[mid:])
+    raw_hook_text = clip.hook_headline.upper() if preset.get("uppercase") else clip.hook_headline
+    raw_hook_lines = split_hook_into_two_lines(raw_hook_text)
+    max_line_chars = max((len(line) for line in raw_hook_lines), default=1)
+
+    base_size = preset["base_size"]
+    max_normal = preset["max_chars_normal"]
+    if max_line_chars > max_normal:
+        hook_fontsize = max(30, int(base_size * (max_normal / max_line_chars)))
     else:
-        hook_formatted = hook_clean
+        hook_fontsize = base_size
 
-    print(f"\n[Rendering {clip_index:02d}/{MAX_CLIPS}] -> {clip_filename} ({duration:.1f}s)")
+    escaped_hook_lines = [escape_ffmpeg_text(line) for line in raw_hook_lines]
+
+    cc_font_opt = f"fontfile='{cc_font_escaped}':" if cc_font_escaped else ""
+    hook_font_opt = f"fontfile='{hook_font_escaped}':" if hook_font_escaped else ""
+    sub_filter = f"subtitles='{sub_escaped}':fontsdir='{fonts_dir_escaped}'" if FONTS_DIR.exists() else f"subtitles='{sub_escaped}'"
+
+    print(f"\n[Rendering {clip_index:02d}/{total_clips:02d}] -> {clip_filename} ({duration:.1f}s) | Font: {preset['label']}")
     print(f"  Judul: {clip.title}")
 
     if mode == "streamer":
@@ -786,6 +896,19 @@ def render_clip_ffmpeg(
         # Center crop horizontal gameplay
         gp_x = max(0, (orig_w - gp_w) // 2)
 
+        if len(escaped_hook_lines) >= 2:
+            hook_drawtext = (
+                f"[layer4]drawtext={hook_font_opt}text='{escaped_hook_lines[0]}':fontsize={hook_fontsize}:fontcolor=#FFD700:"
+                f"borderw=4:bordercolor=black:shadowcolor=black@0.9:shadowx=3:shadowy=3:x=(w-text_w)/2:y=1640[layer4b];"
+                f"[layer4b]drawtext={hook_font_opt}text='{escaped_hook_lines[1]}':fontsize={hook_fontsize}:fontcolor=#FFD700:"
+                f"borderw=4:bordercolor=black:shadowcolor=black@0.9:shadowx=3:shadowy=3:x=(w-text_w)/2:y=1715[layer5];"
+            )
+        else:
+            hook_drawtext = (
+                f"[layer4]drawtext={hook_font_opt}text='{escaped_hook_lines[0]}':fontsize={hook_fontsize}:fontcolor=#FFD700:"
+                f"borderw=4:bordercolor=black:shadowcolor=black@0.9:shadowx=3:shadowy=3:x=(w-text_w)/2:y=1675[layer5];"
+            )
+
         filter_complex = (
             # Kanvas dasar hitam 1080x1920
             f"color=c=black:s=1080x1920:d={duration}[bg];"
@@ -798,12 +921,13 @@ def render_clip_ffmpeg(
             f"[layer1][gp]overlay=0:640[layer2];"
             # Garis batas halus antar zona
             f"[layer2]drawbox=y=638:w=1080:h=3:color=white@0.2:t=fill[layer3];"
-            # Credit Sumber pojok kiri atas
-            f"[layer3]drawtext=text='CC\\: YouTube / {channel_clean}':fontsize=24:fontcolor=white@0.85:x=35:y=30:box=1:boxcolor=black@0.5:boxborderw=8[layer4];"
-            # Headline Hook di zona bawah (y=1635)
-            f"[layer4]drawtext=text='{hook_formatted}':fontsize=42:fontcolor=white:x=(w-text_w)/2:y=1635:shadowcolor=black@0.9:shadowx=2:shadowy=2[layer5];"
+            # Credit Sumber pojok kiri atas (Bold & Jelas)
+            f"[layer3]drawtext={cc_font_opt}text='CC\\: YouTube / {channel_clean}':fontsize=30:fontcolor=white@0.95:x=32:y=30:"
+            f"box=1:boxcolor=black@0.68:boxborderw=14:borderw=1:bordercolor=black@0.4[layer4];"
+            # Headline Hook Kuning Emas (#FFD700) rata tengah per baris di zona bawah
+            f"{hook_drawtext}"
             # Bakar Subtitle ASS ucapan
-            f"[layer5]subtitles='{sub_escaped}'[v_out]"
+            f"[layer5]{sub_filter}[v_out]"
         )
 
     else:
@@ -813,8 +937,9 @@ def render_clip_ffmpeg(
 
         filter_complex = (
             f"[0:v]crop={crop_w}:{orig_h}:{crop_x}:0,scale=1080:1920[v_scaled];"
-            f"[v_scaled]drawtext=text='CC\\: YouTube / {channel_clean}':fontsize=24:fontcolor=white@0.85:x=35:y=40:box=1:boxcolor=black@0.5:boxborderw=8[v_cc];"
-            f"[v_cc]subtitles='{sub_escaped}'[v_out]"
+            f"[v_scaled]drawtext={cc_font_opt}text='CC\\: YouTube / {channel_clean}':fontsize=30:fontcolor=white@0.95:x=32:y=40:"
+            f"box=1:boxcolor=black@0.68:boxborderw=14:borderw=1:bordercolor=black@0.4[v_cc];"
+            f"[v_cc]{sub_filter}[v_out]"
         )
 
     # Coba gunakan akselerasi NVIDIA NVENC jika mode GPU aktif
@@ -876,6 +1001,7 @@ def main():
     parser.add_argument("url", nargs="?", default="", help="Tautan/Link YouTube")
     parser.add_argument("-m", "--mode", choices=["streamer", "biasa", "1", "2"], default="", help="Mode layout: 'streamer' (1) atau 'biasa' (2)")
     parser.add_argument("-f", "--facecam", choices=["auto", "bottom-right", "bottom-left", "top-right", "top-left"], default="auto", help="Posisi webcam streamer (default: auto)")
+    parser.add_argument("--font-style", choices=list(FONT_PRESETS.keys()), default="anton", help="Gaya font judul hook Kuning Emas (default: anton)")
     parser.add_argument("--clips", type=int, default=MAX_CLIPS, help=f"Maksimal klip yang dirender (default: {MAX_CLIPS})")
 
     args, unknown = parser.parse_known_args()
@@ -961,7 +1087,9 @@ def main():
                     orig_h=orig_h,
                     words_data=transcription_data,
                     output_dir=OUTPUT_DIR,
-                    temp_dir=TEMP_DIR
+                    temp_dir=TEMP_DIR,
+                    font_style=args.font_style,
+                    total_clips=len(clips)
                 )
                 rendered_clips.append((idx, clip, out_clip))
             except Exception as e:
