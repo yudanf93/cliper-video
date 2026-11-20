@@ -8,7 +8,7 @@ Sistem otomatisasi Python untuk memproses video YouTube panjang (misal: 1 jam ga
 1. **Ekstraksi Otomatis:** Mengambil video 1080p dan metadata nama channel secara otomatis menggunakan `yt-dlp`.
 2. **Deteksi Facecam Streamer (OpenCV):** Mendeteksi posisi webcam streamer di pojok layar menggunakan Haar Cascade dan mengabaikan karakter game di tengah.
 3. **Transkripsi Lokal (faster-whisper):** Speech-to-Text lokal berkecepatan tinggi dengan timestamp per kata (`word_timestamps=True`).
-4. **Kurasi Momen Cerdas (Gemini 2.5 Flash):** Menganalisis transkrip untuk memilih momen paling lucu, panik, atau tegang (durasi 45–60 detik) serta menghasilkan judul SEO dan headline hook viral.
+4. **Kurasi Momen Cerdas (Gemini 3.8 Flash):** Menganalisis transkrip untuk memilih momen paling lucu, panik, atau tegang (durasi 45–60 detik) serta menghasilkan judul SEO dan headline hook viral.
 5. **Layout Dual Mode (FFmpeg):**
    - **Mode Streamer:** Zona Atas Facecam (`1080x640`) + Zona Tengah Gameplay (`1080x960`) + Zona Bawah Headline Hook & Safe Zone TikTok/Shorts (`1080x320`).
    - **Mode Biasa:** *Center crop* vertikal 9:16 standar layar penuh.
@@ -19,11 +19,21 @@ Sistem otomatisasi Python untuk memproses video YouTube panjang (misal: 1 jam ga
 ## 🛠️ Prasyarat Sistem
 1. **Python 3.10+** terpasang di Windows.
 2. **FFmpeg CLI:**
-   - Unduh dari [ffmpeg.org](https://ffmpeg.org/download.html) atau pasang via terminal Windows:
-     ```powershell
-     winget install Gyan.FFmpeg
-     ```
-   - Pastikan perintah `ffmpeg` dapat dipanggil dari CMD / PowerShell, atau letakkan `ffmpeg.exe` langsung di folder ini.
+   ### Cara Mendapatkan ffmpeg.exe yang Benar:
+   **Opsi 1: Unduh Manual (Paling Mudah & Cepat)**
+   - Klik tautan unduh langsung resmi untuk Windows ini: 👉 [Download FFmpeg Essentials (ZIP)](https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip)
+   - Buka dan Ekstrak (*Extract*) file zip tersebut.
+   - Masuk ke dalam folder `bin` hasil ekstrak. Di sana Anda akan melihat 3 file:
+     - `ffmpeg.exe`
+     - `ffplay.exe`
+     - `ffprobe.exe`
+   - Salin (*Copy*) ketiga file tersebut dan Tempel (*Paste*) langsung ke folder proyek Anda di: 📁 `D:\MY PROJECT\auto_youtube_clipper\`
+   *(Skrip `auto_clipper.py` sudah diprogram untuk otomatis mendeteksi jika `ffmpeg.exe` ditaruh langsung di folder tersebut).*
+
+   **Opsi 2: Menggunakan Terminal Windows (Winget)**
+   ```powershell
+   winget install Gyan.FFmpeg
+   ```
 3. *(Opsional)* **NVIDIA GPU + CUDA Toolkit** jika ingin akselerasi hardware saat transkripsi Whisper.
 
 ---
