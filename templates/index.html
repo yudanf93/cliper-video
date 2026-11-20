@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto YouTube Clipper AI Studio</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f5f3ff',
+              100: '#ede9fe',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+              900: '#4c1d95',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [v-cloak] { display: none; }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-brand-600 selection:text-white">
+
+  <div id="app" v-cloak class="max-w-6xl mx-auto px-4 py-8">
+    
+    <!-- HEADER -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between pb-8 border-b border-slate-800 gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-brand-500/20 text-2xl">
+          🎬
+        </div>
+        <div>
+          <h1 class="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            Auto YouTube Clipper AI
+          </h1>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Otomatisasi Klip Vertikal 9:16 (Shorts & TikTok) Berbasis Gemini 3.8 & CUDA
+          </p>
+        </div>
+      </div>
+
+      <!-- STATUS BADGES -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <div :class="['flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition-colors', wsConnected ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-rose-950/40 border-rose-800 text-rose-300']">
+          <span :class="['w-2 h-2 rounded-full', wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500']"></span>
+          <span>Web Studio: <strong :class="wsConnected ? 'text-emerald-400' : 'text-rose-400'">{{ wsConnected ? 'Real-time Aktif' : 'Menghubungkan...' }}</strong></span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>GPU: <strong class="text-white">{{ sysInfo.gpu || 'NVIDIA GTX 1650' }}</strong></span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+          <span>AI: <strong class="text-white">Gemini 3.8 Flash</strong></span>
+        </div>
+        <button @click="openOutputFolder" class="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-1.5">
+          📁 Buka Folder Hasil
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTROL PANEL -->
+    <main class="mt-8 space-y-8">
+      
+      <!-- FORM INPUT -->
+      <section class="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-6 md:p-8 backdrop-blur shadow-xl relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-64 h-64 bg-brand-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <span>🎯</span> Mulai Ekstraksi Video YouTube
+        </h2>
+
+        <!-- Input URL -->
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+            🔗
+          </div>
+          <input 
+            type="text" 
+            v-model="form.url" 
+            :disabled="isRunning"
+            placeholder="Tempelkan link YouTube di sini (contoh: https://www.youtube.com/watch?v=...)" 
+            class="w-full pl-11 pr-32 py-4 bg-slate-950/70 border border-slate-700/80 rounded-2xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm transition shadow-inner"
+          />
+          <button 
+            @click="pasteClipboard" 
+            :disabled="isRunning"
+            class="absolute right-2.5 top-2.5 bottom-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-xl text-slate-300 transition border border-slate-700/50 flex items-center gap-1">
+            📋 Paste
+          </button>
+        </div>
+
+        <!-- Mode Layout Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <!-- Card Mode 1: Streamer -->
+          <div 
+            @click="!isRunning && (form.mode = 'streamer')" 
+            :class="[
+              'p-5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between',
+              form.mode === 'streamer' 
+                ? 'bg-brand-900/20 border-brand-500 ring-1 ring-brand-500/50 shadow-lg shadow-brand-500/10' 
+                : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
+            ]">
+            <div class="flex items-start justify-between">
+              <div>
+                <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg uppercase tracking-wider bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                  Rekomendasi Gaming / Vlog
+                </span>
+                <h3 class="font-bold text-base text-white mt-2">Mode Streamer (Split Screen)</h3>
+                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Facecam streamer di atas (<code class="text-brand-300">1080x640</code>), Gameplay di tengah (<code class="text-brand-300">1080x960</code>), Headline Hook & Safe Zone TikTok di bawah.
+                </p>
+              </div>
+              <div :class="['w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5', form.mode === 'streamer' ? 'border-brand-500 bg-brand-500' : 'border-slate-700']">
+                <span v-if="form.mode === 'streamer'" class="w-2 h-2 rounded-full bg-white"></span>
+              </div>
+            </div>
+
+            <!-- Setting Facecam Pos (muncul jika mode streamer dipilih) -->
+            <div v-if="form.mode === 'streamer'" class="mt-4 pt-3 border-t border-brand-500/20 flex items-center justify-between text-xs">
+              <span class="text-slate-300 font-medium">Posisi Webcam Streamer:</span>
+              <select v-model="form.facecam" :disabled="isRunning" class="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-brand-500 outline-none">
+                <option value="bottom-right">Pojok Kanan Bawah (Default)</option>
+                <option value="bottom-left">Pojok Kiri Bawah</option>
+                <option value="top-right">Pojok Kanan Atas</option>
+                <option value="top-left">Pojok Kiri Atas</option>
+                <option value="auto">Deteksi Otomatis</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Card Mode 2: Biasa -->
+          <div 
+            @click="!isRunning && (form.mode = 'biasa')" 
+            :class="[
+              'p-5 rounded-2xl border cursor-pointer transition relative flex flex-col justify-between',
+              form.mode === 'biasa' 
+                ? 'bg-brand-900/20 border-brand-500 ring-1 ring-brand-500/50 shadow-lg shadow-brand-500/10' 
+                : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
+            ]">
+            <div class="flex items-start justify-between">
+              <div>
+                <span class="px-2.5 py-1 text-[11px] font-bold rounded-lg uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+                  Sinematik / Podcast
+                </span>
+                <h3 class="font-bold text-base text-white mt-2">Mode Biasa (Center Crop 9:16)</h3>
+                <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Memotong video 16:9 secara penuh menjadi rasio 9:16 layar penuh (<code class="text-slate-300">1080x1920</code>) dengan penempatan subtitle aman di bawah.
+                </p>
+              </div>
+              <div :class="['w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5', form.mode === 'biasa' ? 'border-brand-500 bg-brand-500' : 'border-slate-700']">
+                <span v-if="form.mode === 'biasa'" class="w-2 h-2 rounded-full bg-white"></span>
+              </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-800/80 text-xs text-slate-500 italic">
+              Cocok untuk video tanpa webcam terpisah (film, trailer, tutorial).
+            </div>
+          </div>
+        </div>
+
+        <!-- Tombol Aksi -->
+        <div class="mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-800">
+          <button 
+            @click="startProcess('review')"
+            :disabled="isRunning || !form.url"
+            class="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span>🔍</span>
+            <span>Analisis & Kustomisasi Momen Dulu</span>
+          </button>
+
+          <button 
+            @click="startProcess('auto')"
+            :disabled="isRunning || !form.url"
+            class="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-brand-500/25 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span v-if="isRunning" class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+            <span v-else>🚀</span>
+            <span>{{ isRunning ? 'Sedang Memproses...' : 'Mulai Otomatis Penuh (Auto-Pilot)' }}</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- LIVE PROGRESS & STEPPER ANIMATION -->
+      <section v-if="isRunning || progress.step > 0" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-brand-500 animate-ping"></span>
+              <span>Status Proses Pembuatan Klip</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">{{ progress.statusMessage || 'Menginisialisasi sistem...' }}</p>
+          </div>
+          <div class="text-right">
+            <span class="text-2xl font-black bg-gradient-to-r from-brand-400 to-indigo-400 bg-clip-text text-transparent">
+              {{ progress.overallPercent }}%
+            </span>
+          </div>
+        </div>
+
+        <!-- MAIN ANIMATED PROGRESS BAR (0 - 100%) -->
+        <div class="w-full bg-slate-950 rounded-full h-4 p-1 overflow-hidden border border-slate-800 shadow-inner">
+          <div 
+            class="h-full rounded-full bg-gradient-to-r from-brand-500 via-indigo-500 to-emerald-400 transition-all duration-500 ease-out shadow-lg"
+            :style="{ width: progress.overallPercent + '%' }">
+          </div>
+        </div>
+
+        <!-- 5-STEP PIPELINE CARDS (masing-masing punya progress bar 0-100%) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mt-6">
+          <div v-for="s in steps" :key="s.n"
+               :class="['p-3.5 rounded-2xl border text-center transition flex flex-col justify-between relative overflow-hidden', getStepClass(s.n)]">
+            <div>
+              <div class="text-xl mb-1">{{ stepPct[s.n] >= 100 ? '✅' : s.icon }}</div>
+              <div class="text-xs font-bold text-white">{{ s.n }}. {{ s.title }}</div>
+            </div>
+            <div class="mt-3">
+              <div class="flex items-center justify-between text-[10px] font-mono mb-1">
+                <span class="text-slate-400">{{ stepPct[s.n] >= 100 ? 'Selesai' : (progress.step === s.n ? 'Berjalan' : 'Menunggu') }}</span>
+                <span class="font-extrabold text-white text-xs">{{ Math.round(stepPct[s.n]) }}%</span>
+              </div>
+              <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800">
+                <div :class="['h-full rounded-full transition-all duration-500 ease-out', stepPct[s.n] >= 100 ? 'bg-emerald-400' : s.color]"
+                     :style="{ width: Math.min(100, stepPct[s.n]) + '%' }"></div>
+              </div>
+              <div class="mt-1.5 text-[11px] font-semibold text-slate-300 break-words min-h-[1.5rem]">
+                {{ progress[s.textKey] || s.idle }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LIVE LOG CONSOLE -->
+        <div class="mt-6">
+          <div class="flex items-center justify-between">
+            <button @click="showLogs = !showLogs" class="text-xs text-slate-400 hover:text-slate-200 transition flex items-center gap-1 font-medium">
+              <span>{{ showLogs ? '▼ Sembunyikan Log Terminal' : '▶ Tampilkan Log Terminal Lengkap' }}</span>
+            </button>
+            <span v-if="logs.length > 0" class="text-[11px] text-slate-500 font-mono">{{ logs.length }} baris log</span>
+          </div>
+          <div v-if="showLogs" id="log-box" class="mt-2 bg-slate-950 rounded-2xl p-4 border border-slate-800 text-[11px] font-mono text-slate-300 max-h-56 overflow-y-auto space-y-1 shadow-inner select-text">
+            <div v-for="(log, idx) in logs" :key="idx" :class="getLogClass(log)">
+              {{ log.msg }}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MOMENT REVIEW & CUSTOMIZATION (MODE 2) -->
+      <section v-if="candidateClips.length > 0 && !isRendering" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-800 gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>✍️</span> Momen Terpilih oleh Gemini 3.8 Flash (Siap Render)
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Anda dapat mengedit teks Hook Headline dan memilih klip mana saja yang ingin dirender.
+            </p>
+          </div>
+          <button 
+            @click="renderSelectedClips" 
+            class="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs transition shadow-lg shadow-emerald-600/20 flex items-center gap-2">
+            <span>🎬</span>
+            <span>Render ({{ selectedCount }}) Klip Terpilih</span>
+          </button>
+        </div>
+
+        <!-- CARDS REVIEW -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div 
+            v-for="(clip, idx) in candidateClips" 
+            :key="idx" 
+            class="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 transition hover:border-slate-700">
+            <div class="flex items-start justify-between gap-3">
+              <label class="flex items-center gap-2.5 cursor-pointer">
+                <input type="checkbox" v-model="clip.selected" class="w-4 h-4 rounded border-slate-700 text-brand-600 focus:ring-brand-500 bg-slate-900">
+                <span class="text-xs font-extrabold text-white">Klip #{{ String(idx + 1).padStart(2, '0') }}</span>
+              </label>
+              <span class="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded-md text-[10px] font-mono text-slate-300">
+                ⏱ {{ clip.start_seconds }}s - {{ clip.end_seconds }}s ({{ (clip.end_seconds - clip.start_seconds).toFixed(1) }}s)
+              </span>
+            </div>
+
+            <!-- SEO TITLE -->
+            <div class="mt-3">
+              <label class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Judul SEO</label>
+              <input type="text" v-model="clip.title" class="w-full mt-1 px-3 py-1.5 bg-slate-900 border border-slate-750 rounded-lg text-xs text-slate-200 outline-none focus:ring-1 focus:ring-brand-500">
+            </div>
+
+            <!-- HOOK HEADLINE (EDITABLE) -->
+            <div class="mt-3">
+              <label class="text-[10px] text-brand-300 font-semibold uppercase tracking-wider block">Headline Hook (Tampil di Video)</label>
+              <textarea v-model="clip.hook_headline" rows="2" class="w-full mt-1 px-3 py-1.5 bg-slate-900 border border-brand-500/40 rounded-lg text-xs text-brand-200 outline-none focus:ring-1 focus:ring-brand-500"></textarea>
+            </div>
+
+            <!-- REASON -->
+            <p class="text-[11px] text-slate-400 italic mt-2 border-t border-slate-900 pt-2">
+              💡 "{{ clip.reason }}"
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FINISHED CLIPS GALLERY & VIDEO PLAYER (9:16) -->
+      <section v-if="completedClips.length > 0" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl">
+        <div class="flex items-center justify-between pb-6 border-b border-slate-800">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>🎉</span> Klip Vertikal Siap Unggah ({{ completedClips.length }})
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Semua video siap langsung diupload ke YouTube Shorts dan TikTok.</p>
+          </div>
+          <button @click="openOutputFolder" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white transition">
+            📁 Buka di Explorer
+          </button>
+        </div>
+
+        <!-- 9:16 VIDEO GRID -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-6">
+          <div v-for="(clip, idx) in completedClips" :key="idx" class="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between group shadow-lg">
+            
+            <!-- Video Player (9:16 Aspect Ratio) -->
+            <div class="relative bg-black aspect-[9/16] overflow-hidden">
+              <video 
+                :src="'/api/video/' + clip.filename" 
+                controls 
+                preload="metadata"
+                class="w-full h-full object-contain">
+              </video>
+            </div>
+
+            <!-- Details -->
+            <div class="p-4 flex-1 flex flex-col justify-between">
+              <div>
+                <span class="text-[10px] font-bold text-brand-400 uppercase tracking-wider block">Klip {{ String(idx + 1).padStart(2, '0') }}</span>
+                <h4 class="text-xs font-bold text-white line-clamp-2 mt-1">{{ clip.title }}</h4>
+                <p class="text-[11px] text-slate-400 line-clamp-2 mt-1 italic">"{{ clip.hook_headline }}"</p>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="mt-4 pt-3 border-t border-slate-900 flex items-center gap-2">
+                <a 
+                  :href="'/api/video/' + clip.filename" 
+                  :download="clip.filename"
+                  class="flex-1 text-center py-2 bg-brand-600 hover:bg-brand-500 rounded-xl text-xs font-bold text-white transition shadow-sm">
+                  ⬇ Download
+                </a>
+                <button 
+                  @click="copyText(clip.title + '\n\n' + clip.hook_headline)" 
+                  class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition" 
+                  title="Salin Judul & Hook">
+                  📋
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- VUE APPLICATION SCRIPT -->
+  <script>
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+    createApp({
+      setup() {
+        const form = ref({
+          url: '',
+          mode: 'streamer',
+          facecam: 'bottom-right'
+        });
+
+        const isRunning = ref(false);
+        const isRendering = ref(false);
+        const showLogs = ref(true);
+        const wsConnected = ref(false);
+
+        const sysInfo = ref({
+          gpu: 'NVIDIA GeForce GTX 1650 Max-Q',
+          whisper: 'base',
+          gemini: 'gemini-3.8-flash'
+        });
+
+        const progress = ref({
+          step: 0,
+          overallPercent: 0,
+          stepPercent: 0,
+          statusMessage: 'Siap memproses video',
+          downloadText: '',
+          facecamText: '',
+          whisperText: '',
+          geminiText: '',
+          renderText: ''
+        });
+
+        const logs = ref([]);
+        const candidateClips = ref([]);
+        const completedClips = ref([]);
+
+        // Definisi 5 kartu + persentase masing-masing tahap (0-100)
+        const steps = [
+          { n: 1, icon: '📥', title: 'Unduh Video',    color: 'bg-gradient-to-r from-brand-500 to-sky-400',      textKey: 'downloadText', idle: 'Menunggu...' },
+          { n: 2, icon: '👤', title: 'Facecam',        color: 'bg-gradient-to-r from-fuchsia-500 to-pink-400',   textKey: 'facecamText',  idle: 'Pojok Layar' },
+          { n: 3, icon: '🎙️', title: 'Whisper CUDA',   color: 'bg-gradient-to-r from-teal-500 to-emerald-400',   textKey: 'whisperText',  idle: 'Transkripsi' },
+          { n: 4, icon: '🧠', title: 'Gemini 3.8',     color: 'bg-gradient-to-r from-indigo-500 to-violet-400',  textKey: 'geminiText',   idle: 'Kurasi AI' },
+          { n: 5, icon: '🎬', title: 'FFmpeg Render',  color: 'bg-gradient-to-r from-amber-500 to-orange-400',   textKey: 'renderText',   idle: 'Ekspor 9:16' }
+        ];
+        const stepPct = ref({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+
+        const updateStepPct = (step, pct) => {
+          if (!step) return;
+          // Semua tahap sebelumnya otomatis 100%
+          for (let s = 1; s < step; s++) stepPct.value[s] = 100;
+          if (pct !== undefined && pct !== null) {
+            stepPct.value[step] = Math.max(0, Math.min(100, Number(pct)));
+          }
+        };
+
+        // Gemini tidak melaporkan persentase -> animasi estimasi mendekati 95%
+        // sampai balasan diterima (backend mengirim 100%).
+        const startGeminiEstimator = () => {
+          setInterval(() => {
+            if (progress.value.step === 4 && stepPct.value[4] < 95 && progress.value.stepPercent < 100) {
+              stepPct.value[4] = stepPct.value[4] + (95 - stepPct.value[4]) * 0.04 + 0.1;
+            }
+          }, 500);
+        };
+
+        let lastEventId = 0;
+        let pollTimer = null;
+
+        // Polling HTTP: stabil, tidak bergantung WebSocket
+        const pollEvents = async () => {
+          try {
+            const res = await fetch(`/api/events?since=${lastEventId}`, { cache: 'no-store' });
+            const data = await res.json();
+            wsConnected.value = true;
+
+            if (data.last_id < lastEventId) lastEventId = 0; // server di-restart
+
+            for (const ev of data.events) {
+              lastEventId = Math.max(lastEventId, ev.id);
+              handleWsMessage(ev);
+            }
+            if (data.is_running && !isRunning.value) isRunning.value = true;
+            if (!data.is_running && isRunning.value && candidateClips.value.length === 0 && data.events.length === 0 && progress.value.overallPercent >= 100) {
+              isRunning.value = false;
+            }
+          } catch (e) {
+            wsConnected.value = false;
+          } finally {
+            pollTimer = setTimeout(pollEvents, 400);
+          }
+        };
+
+        const connectWebSocket = () => { pollEvents(); };
+
+        const handleWsMessage = (data) => {
+          if (data.type === 'sync_state' || data.type === 'connected') {
+            wsConnected.value = true;
+            if (data.is_running) isRunning.value = true;
+            if (data.progress) {
+              progress.value = { ...progress.value, ...data.progress };
+            }
+          } else if (data.type === 'log') {
+            logs.value.push({ msg: data.message, type: data.level || 'info' });
+            if (logs.value.length > 500) {
+              logs.value.shift();
+            }
+            nextTick(() => {
+              const el = document.getElementById('log-box');
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+          } else if (data.type === 'progress') {
+            if (data.step !== undefined) progress.value.step = data.step;
+            if (data.overallPercent !== undefined) progress.value.overallPercent = data.overallPercent;
+            if (data.stepPercent !== undefined) progress.value.stepPercent = data.stepPercent;
+            if (data.statusMessage) progress.value.statusMessage = data.statusMessage;
+            updateStepPct(data.step, data.stepPercent);
+
+            if (data.step === 1 && data.detail) progress.value.downloadText = data.detail;
+            if (data.step === 2 && data.detail) progress.value.facecamText = data.detail;
+            if (data.step === 3 && data.detail) progress.value.whisperText = data.detail;
+            if (data.step === 4 && data.detail) progress.value.geminiText = data.detail;
+            if (data.step === 5 && data.detail) progress.value.renderText = data.detail;
+          } else if (data.type === 'candidates') {
+            candidateClips.value = data.clips.map(c => ({ ...c, selected: true }));
+            isRunning.value = false;
+          } else if (data.type === 'clip_completed') {
+            if (!completedClips.value.some(c => c.filename === data.clip.filename)) {
+              completedClips.value.push(data.clip);
+            } else {
+              completedClips.value = completedClips.value.map(c => c.filename === data.clip.filename ? data.clip : c);
+            }
+          } else if (data.type === 'finished') {
+            isRunning.value = false;
+            isRendering.value = false;
+            progress.value.overallPercent = 100;
+            stepPct.value = { 1: 100, 2: 100, 3: 100, 4: 100, 5: 100 };
+            progress.value.statusMessage = 'Selesai! Seluruh klip berhasil dirender.';
+          } else if (data.type === 'error') {
+            isRunning.value = false;
+            isRendering.value = false;
+            alert('Error: ' + data.message);
+          }
+        };
+
+        const getLogClass = (log) => {
+          const m = log.msg;
+          if (log.type === 'error' || m.includes('[ERROR]') || m.toLowerCase().includes('traceback')) {
+            return 'text-rose-400 font-semibold';
+          }
+          if (m.includes('[OK]')) {
+            return 'text-emerald-400 font-medium';
+          }
+          if (m.includes('[download]')) {
+            return 'text-sky-300';
+          }
+          if (m.includes('[Merger]') || m.includes('Mengekstrak') || m.includes('menggabungkan')) {
+            return 'text-purple-300 font-medium';
+          }
+          if (m.includes('[WARN]')) {
+            return 'text-amber-400';
+          }
+          if (m.includes('faster-whisper') || m.includes('Whisper') || m.includes('Transkripsi')) {
+            return 'text-teal-300';
+          }
+          if (m.includes('Gemini') || m.includes('gemini')) {
+            return 'text-indigo-300 font-medium';
+          }
+          return 'text-slate-400';
+        };
+
+        const startProcess = async (actionType) => {
+          if (!form.value.url) return;
+          isRunning.value = true;
+          logs.value = [];
+          completedClips.value = [];
+          candidateClips.value = [];
+          stepPct.value = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+          progress.value = {
+            step: 1,
+            overallPercent: 5,
+            stepPercent: 0,
+            statusMessage: 'Menghubungkan ke YouTube...',
+            downloadText: '',
+            facecamText: '',
+            whisperText: '',
+            geminiText: '',
+            renderText: ''
+          };
+
+          try {
+            await fetch('/api/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: form.value.url,
+                mode: form.value.mode,
+                facecam: form.value.facecam,
+                action: actionType
+              })
+            });
+          } catch (err) {
+            alert('Gagal menghubungi server: ' + err);
+            isRunning.value = false;
+          }
+        };
+
+        const renderSelectedClips = async () => {
+          const selected = candidateClips.value.filter(c => c.selected);
+          if (selected.length === 0) {
+            alert('Pilih minimal 1 klip untuk dirender!');
+            return;
+          }
+          isRendering.value = true;
+          isRunning.value = true;
+          try {
+            await fetch('/api/render', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clips: selected })
+            });
+          } catch (err) {
+            alert('Gagal memulai render: ' + err);
+            isRendering.value = false;
+            isRunning.value = false;
+          }
+        };
+
+        const selectedCount = computed(() => {
+          return candidateClips.value.filter(c => c.selected).length;
+        });
+
+        const getStepClass = (stepNum) => {
+          if (progress.value.step > stepNum) {
+            return 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300';
+          } else if (progress.value.step === stepNum) {
+            return 'bg-brand-950/60 border-brand-500 text-white ring-1 ring-brand-500 animate-pulse';
+          }
+          return 'bg-slate-950 border-slate-800 text-slate-500';
+        };
+
+        const pasteClipboard = async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text) form.value.url = text;
+          } catch (e) {
+            console.log('Clipboard access denied');
+          }
+        };
+
+        const copyText = (txt) => {
+          navigator.clipboard.writeText(txt);
+          alert('Teks berhasil disalin ke clipboard!');
+        };
+
+        const openOutputFolder = async () => {
+          await fetch('/api/open-folder', { method: 'POST' });
+        };
+
+        const loadExistingClips = async () => {
+          try {
+            const res = await fetch('/api/clips');
+            const data = await res.json();
+            if (data.clips) completedClips.value = data.clips;
+          } catch (e) {}
+        };
+
+        onMounted(() => {
+          connectWebSocket();
+          loadExistingClips();
+          startGeminiEstimator();
+        });
+
+        return {
+          form,
+          sysInfo,
+          steps,
+          stepPct,
+          isRunning,
+          isRendering,
+          showLogs,
+          wsConnected,
+          getLogClass,
+          progress,
+          logs,
+          candidateClips,
+          completedClips,
+          selectedCount,
+          startProcess,
+          renderSelectedClips,
+          getStepClass,
+          pasteClipboard,
+          copyText,
+          openOutputFolder
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

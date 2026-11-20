@@ -1,0 +1,14 @@
+# Auto YouTube Clipper Dependencies
+yt-dlp>=2024.0.0
+faster-whisper>=1.0.0
+google-genai>=0.1.0
+pydantic>=2.0.0
+opencv-python>=4.8.0
+pillow>=10.0.0
+python-dotenv>=1.0.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# Akselerasi GPU NVIDIA CUDA 12 (Opsional untuk GPU NVIDIA GTX/RTX)
+nvidia-cublas-cu12
+nvidia-cudnn-cu12

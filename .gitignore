@@ -1,0 +1,17 @@
+# Rahasia / konfigurasi lokal
+.env
+
+# Biner FFmpeg (unduh manual dari https://www.gyan.dev/ffmpeg/builds/)
+ffmpeg.exe
+ffplay.exe
+ffprobe.exe
+
+# Hasil proses & file sementara
+output_clips/
+temp_work/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
