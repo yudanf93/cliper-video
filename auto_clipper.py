@@ -627,9 +627,16 @@ Transkrip Video:
 
     clips_result = []
 
-    # Daftar kandidat model untuk dicoba berurutan jika model tertentu tidak tersedia
+    # Daftar kandidat model aktif dari Google Gemini AI Studio (generasi 3.x & flash-latest)
     candidate_models = []
-    for m in [GEMINI_MODEL_NAME, "gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+    preferred_order = [
+        GEMINI_MODEL_NAME,
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+        "gemini-flash-latest",
+    ]
+    for m in preferred_order:
         if m and m not in candidate_models:
             candidate_models.append(m)
 
@@ -643,34 +650,55 @@ Transkrip Video:
         client = genai.Client(api_key=api_key)
 
         for m_name in candidate_models:
-            try:
-                print(f"Menganalisis transkrip dengan model: {m_name}...")
-                response = client.models.generate_content(
-                    model=m_name,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=ClipAnalysisResult,
-                        temperature=0.7
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                try:
+                    if attempt > 1:
+                        print(f"Mencoba ulang analisis dengan model: {m_name} (percobaan {attempt}/{max_retries})...")
+                    else:
+                        print(f"Menganalisis transkrip dengan model: {m_name}...")
+
+                    response = client.models.generate_content(
+                        model=m_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=ClipAnalysisResult,
+                            temperature=0.7
+                        )
                     )
-                )
 
-                parsed_data = json.loads(response.text)
-                if isinstance(parsed_data, dict) and "clips" in parsed_data:
-                    for c in parsed_data["clips"]:
-                        clips_result.append(ClipSegment(**c))
-                elif isinstance(parsed_data, list):
-                    for c in parsed_data:
-                        clips_result.append(ClipSegment(**c))
+                    parsed_data = json.loads(response.text)
+                    if isinstance(parsed_data, dict) and "clips" in parsed_data:
+                        for c in parsed_data["clips"]:
+                            clips_result.append(ClipSegment(**c))
+                    elif isinstance(parsed_data, list):
+                        for c in parsed_data:
+                            clips_result.append(ClipSegment(**c))
 
-                if clips_result:
-                    print(f"[OK] Sukses mendapatkan rekomendasi klip dari model: {m_name}")
-                    success = True
-                    break
-            except Exception as err:
-                last_error = err
-                print(f"[INFO] Model {m_name} tidak dapat digunakan ({err}). Mencoba model alternatif...")
-                continue
+                    if clips_result:
+                        print(f"[OK] Sukses mendapatkan rekomendasi klip dari model: {m_name}")
+                        success = True
+                        break
+                except Exception as err:
+                    last_error = err
+                    err_str = str(err)
+                    # Deteksi error sementara dari Google (503 High Demand, 429 Rate Limit, timeout)
+                    is_transient = any(code in err_str for code in ["503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "timed out", "timeout"])
+
+                    if is_transient and attempt < max_retries:
+                        wait_time = attempt * 4
+                        print(f"[WARN] Server Google Gemini sedang padat / antre ({err_str[:90]}...).")
+                        print(f"[INFO] Menunggu {wait_time} detik sebelum mencoba kembali (percobaan {attempt}/{max_retries})...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        # Model tidak ditemukan (404) atau kuota habis, coba model alternatif berikutnya
+                        print(f"[INFO] Model {m_name} belum dapat digunakan ({err}). Mencoba model alternatif...")
+                        break
+
+            if success:
+                break
 
     except Exception as setup_err:
         raise RuntimeError(f"Gagal memuat pustaka google-genai: {setup_err}")
